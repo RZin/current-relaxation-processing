@@ -998,7 +998,7 @@ class Wave:
         ts = self.ts[i:j].copy()
         return Wave(ys, ts, self.framerate)
 
-    def make_spectrum(self, full=False):
+    def make_spectrum(self, full=False, normalize=False):
         """Computes the spectrum using FFT.
 
         returns: Spectrum
@@ -1007,10 +1007,18 @@ class Wave:
         d = 1 / self.framerate
 
         if full:
-            hs = np.fft.fft(self.ys)
+            if normalize:
+                hs = np.fft.fft(self.ys)/n
+            else:
+                hs = np.fft.fft(self.ys)
+
             fs = np.fft.fftfreq(n, d)
+
         else:
-            hs = np.fft.rfft(self.ys)
+            if normalize:
+                hs = np.fft.rfft(self.ys)/n
+            else:
+                hs = np.fft.rfft(self.ys)
             fs = np.fft.rfftfreq(n, d)
 
         return Spectrum(hs, fs, self.framerate, full)

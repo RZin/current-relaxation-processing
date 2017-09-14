@@ -2,20 +2,14 @@
 from __future__ import print_function, division
 
 from win32api import GetSystemMetrics
-screen = (GetSystemMetrics[0], GetSystemMetrics[1])
+screen = (20,15)
 
 from collections import OrderedDict
 import array
 import copy
-import math
+import math as m
 
 import numpy as np
-import random
-import scipy
-import scipy.stats
-import scipy.fftpack
-import struct
-import subprocess
 import thinkplot
 import warnings
 import pandas as pd
@@ -31,7 +25,7 @@ except:
     warnings.warn("Can't import Audio from IPython.display; "
                   "Wave.make_audio() will not work.")
 
-PI2 = math.pi * 2
+PI2 = m.pi * 2
 
 from Full_digital_signal_processing import _SpectrumParent, Spectrum, Wave, Signal,\
     ExpDecSpectrum, ExpDecWave, ExpDecGaussTau, get_wave_from_txt, \
@@ -42,8 +36,6 @@ get_exp_dec_wave_from_txt, get_option_from_txt
 
 def exp_dec_gauss_tau(x, y0, amp, tau, sig, Nexps, xmin, xmax, points: int):  # import
     # todo build function from npoints total
-    import numpy as np
-    import math as m
     # y0,amp,tau,sig,Nexps
     taus = list(range(Nexps))
     lgtaus = list(range(Nexps))
@@ -97,14 +89,12 @@ def plot_log_with_points(xs, ys, indlist,tau,sig,amp):
     plt.show()
 
 def create_tau_sig_amp():
-    import math as m
     """:returns
      taulist [0.01832, 0.04979, 0.36788, 1.0, 20.08554, 54.59815, 148.41316]
      siglist [1.0001, 1.64872, 2.71828, 7.38906, 20.08554]
      amplist [0.00248, 0.01832, 0.13534, 1.0, 7.38906]"""
 
     def DischargeByExp(start, end):
-        import math as m
         # find logs
         lnStart = int(m.log(start))
         # print('lnStart', lnStart)
@@ -152,9 +142,9 @@ def get_p1_p2_points(ys:array, by_lg10=False):
     # things work like this   delta1-----------0----------------delta2
     fst = ys[1]
     if by_lg10:
-        lg_fst = math.log10(fst)
+        lg_fst = m.log10(fst)
         lst = ys[-1]
-        lg_lst = math.log10(lst)
+        lg_lst = m.log10(lst)
         assert lg_fst > lg_lst
         diff = lg_fst - lg_lst
 
@@ -198,7 +188,7 @@ def get_p1_p2_points(ys:array, by_lg10=False):
 def get_point_95(ys:array):
     '''returns index of point with 95% of log diff maximum'''
     fst = ys[1]
-    lg_fst = math.log10(fst)
+    lg_fst = m.log10(fst)
     for ind, el in enumerate(ys):
         if el <= fst*0.85:
             return ind
@@ -221,13 +211,13 @@ def get_filename(prefix, tau, sig, amp, suffix):
     assert type(file_name) == str
     return file_name
 
-def make_wave_and_save(tau, sig, amp):
+def make_exp_dec_wave_and_save(tau, sig, amp, to_save=False, npoints_total_change = 20001):
     # get filename
     file_name = get_filename('Signal', tau, sig, amp,'_.txt')
     # get the wave
     start = -169.5
     end = 169.5
-    npoints_total = 20001
+    npoints_total = npoints_total_change
     frame_rate = npoints_total / (end - start)
 
     exp_dec_signal = ExpDecGaussTau(y0=0.01, tau=tau, \
@@ -240,8 +230,9 @@ def make_wave_and_save(tau, sig, amp):
                                                   Nexps=100, xmin=start, \
                                                   xmax=end, npoints=npoints_total, \
                                                   duration=end - start, start=start, framerate=frame_rate)
-    # save wave
-    wave_from_exp_dec.save_wave_txt(filename=file_name)
+    if to_save:
+        # save wave
+        wave_from_exp_dec.save_wave_txt(filename=file_name)
     return wave_from_exp_dec
 
 def make_spectrum_and_save(wave, tau, sig, amp):
@@ -270,9 +261,10 @@ def plot_exp_dec_wave(wave, tau, sig, amp, to_save):
     else:
         plt.show()
 
-def plot_exp_dec_spectrum(spectrum, tau, sig, amp, point_ind_list=None, to_save = False):
+def plot_exp_dec_spectrum(spectrum, tau, sig, amp, point_ind_list=None, to_save = False, to_compare_with_formula =False):
     # get filename
-    path = r'C:\Python\_FFT_fitting_project\spectrum_graphs\\'
+    # path = r'C:\Python\_FFT_fitting_project\spectrum_graphs\\'
+    path = r'.\spectrum_graphs\\'
     file_name = get_filename('SpectrumGraph', tau, sig, amp, '_.png')
     xs = spectrum.fs
     ys = spectrum.amps
@@ -283,50 +275,134 @@ def plot_exp_dec_spectrum(spectrum, tau, sig, amp, point_ind_list=None, to_save 
     plt.title(file_name)
     plt.xlabel('w')
     plt.ylabel('y')
-    if point_ind_list is not None:
+    if to_compare_with_formula: # todo change if needed
+        # fs_by_formula = np.linspace(0 ,xs[-1],xs.size) # freqs = xs
+        fs_by_formula = xs # freqs = xs
+        Ag = ys[1]/(tau*PI2)**2
+        amps_by_formula = Fourier_exp_dec_by_formula(fs_by_formula, Ag, tau) # amps
+        plt.plot(fs_by_formula, amps_by_formula, c='red')
+
+    ymin = ys[-1]
+    ymax = ys[1]
+    # plt.ylim(ymin,ymax)
+
+    if point_ind_list:
         xpoints = list(xs[i] for i in point_ind_list)
         ypoints = list(ys[i] for i in point_ind_list)
         plt.scatter(xpoints, ypoints)
     if to_save:
-        plt.savefig(file_name)
+        plt.savefig(path+file_name)
     else:
         plt.show()
 
-def get_exp_dec_wave(tau, sig, amp):
-    # get the wave
-    start = -169.5
-    end = 169.5
-    npoints_total = 20001
-    frame_rate = npoints_total / (end - start)
+def plot_two_exp_dec_spectrums(spectrum1, spectrum2, tau, sig, amp, point_ind_list=None, to_save=False):
+    # get filename
+    # path = r'C:\Python\_FFT_fitting_project\spectrum_graphs\\'
+    path = r'.\spectrum_graphs\\'
+    file_name = get_filename('SpectrumGraph', tau, sig, amp, '_.png')
+    xs1 = spectrum1.fs
+    ys1 = spectrum1.amps
 
-    exp_dec_signal = ExpDecGaussTau(y0=0.01, tau=tau, \
-                             sig=sig, amp=amp, \
-                             Nexps=100, xmin=start, \
-                             xmax=end, npoints=npoints_total)
+    xs2 = spectrum2.fs
+    ys2 = spectrum2.amps
 
-    wave_from_exp_dec = exp_dec_signal.make_exp_dec_wave(y0=0.01, tau=tau, \
-                                                  sig=sig, amp=amp, \
-                                                  Nexps=100, xmin=start, \
-                                                  xmax=end, npoints=npoints_total, \
-                                                  duration=end - start, start=start, framerate=frame_rate)
-    # save wave
-    return wave_from_exp_dec
+    ymin = ys1[-1]
+    ymax = ys1[1]
+
+    plt.figure(figsize=screen)
+    plt.plot(xs1,ys1,c='blue')
+    plt.plot(xs2,ys2,c='red')
+    # plt.ylim(ymin,ymax)
+    plt.xscale('log')
+    # plt.yscale('log')
+    plt.title(file_name)
+    plt.xlabel('w')
+    plt.ylabel('y')
+    if point_ind_list is not None:
+        xpoints = list(xs1[i] for i in point_ind_list)
+        ypoints = list(ys1[i] for i in point_ind_list)
+        # plt.scatter(xpoints, ypoints)
+
+    if to_save:
+        plt.savefig(path + file_name)
+    else:
+        plt.show()
+
+def Fourier_exp_dec_by_formula(fs, A, tau):
+    ys = []
+    for freq in fs:
+        ys.append(A /(freq**2+(1/(2*3.14*tau))**2))
+    return ys
+
+def num_points_influence():
+    def plot_parameter(parameter, name=None):
+        plt.figure(figsize=screen)
+        if name:
+            plt.title(name)
+        plt.scatter(Points_Num, parameter)
+        plt.plot(Points_Num, parameter)
+        if parameter[0] < parameter[-1]:
+            plt.ylim(parameter[0], parameter[-1])
+        else:
+            plt.ylim(parameter[-1], parameter[0])
+
+        plt.show()
+    '''check the influence of number of points in the initial data'''
+    taulist, siglist, amplist = create_tau_sig_amp()
+    print('num_points_influence')
+    """
+     taulist [0.01832, 0.04979, 0.36788, 1.0, 20.08554, 54.59815, 148.41316]
+     siglist [1.0001, 1.64872, 2.71828, 7.38906, 20.08554]
+     amplist [0.00248, 0.01832, 0.13534, 1.0, 7.38906]"""
+    import pylab as plt
+    tau = taulist[2]
+    sig = siglist[0]
+    amp = amplist[0]
+    Points_Num = range(2001, 10001, 2000)
+    wavelist = [make_exp_dec_wave_and_save(tau, sig, amp, to_save=False, npoints_total_change=x) for x in Points_Num]
+    speclist = [wave.make_spectrum(normalize=True) for wave in wavelist]
+
+    plateau_list = [spec.amps[-2] for spec in speclist]
+    max_freq_list = [max(spec.fs) for spec in speclist]
+    max_amp = [spec.amps[1] for spec in speclist]
+    for max_ in max_amp:
+        print(max_)
+    for min in plateau_list:
+        print(min)
+    # plot_parameter(max_amp)
+    # plot_parameter(plateau_list, name='plateau points vs Num of points')
+    # plot_parameter(max_freq_list, name='max freq vs Num of points')
+    return
 
 def analyse_exp_dec(tau, sig, amp, mode2='check'):
     if mode2 == 'save':
-        wave = make_wave_and_save(tau, sig, amp)
+        wave = make_exp_dec_wave_and_save(tau, sig, amp, to_save=True)
         spec = make_spectrum_and_save(wave, tau, sig, amp)
         plot_exp_dec_spectrum(spec, tau, sig, amp, point_ind_list=(0, -1), to_save=True)
     elif mode2 == 'check':
-        wave = get_exp_dec_wave(tau, sig, amp)
-        spec = wave.make_spectrum()
-        p1, p2 = get_p1_p2_points(spec.amps)
-        freqs = spec.fs
-        amps = spec.amps
-        print(freqs[p1], freqs[p2])
-        print(amps[p1], amps[p2])
-        plot_exp_dec_spectrum(spec, tau, sig, amp, point_ind_list=(p1, p2), to_save=False)
-        # plt.show()
+        wave1 = make_exp_dec_wave_and_save(tau, sig, amp, to_save=False, npoints_total_change=2001) # todo from 2001 to 10001
+        spec1 = wave1.make_spectrum(normalize=True)
+        p11, p21 = get_p1_p2_points(spec1.amps)
+
+        plot_exp_dec_spectrum(spec1, tau, sig, amp, to_save=False,
+                              to_compare_with_formula=True)
+
+        # freqs1 = spec1.fs
+        # amps = spec.amps
+        # print(freqs[p1], freqs[p2])
+        # print(amps[p1], amps[p2])
+
+        # wave2 = make_exp_dec_wave_and_save(tau, sig, amp, to_save=False, npoints_total_change=10001)
+        # spec2 = wave2.make_spectrum(normalize=True)
+        # p12, p22 = get_p1_p2_points(spec2.amps)
+
+        # freqs2 = spec2.fs
+        # amps = spec.amps
+        # print(freqs[p1], freqs[p2])
+        # print(amps[p1], amps[p2])
+
+        # plot_two_exp_dec_spectrums(spec1, spec2, tau, sig, amp, point_ind_list=(p11, p21), to_save=False)
+
     elif mode2 == 'load':
         wave = get_exp_dec_wave_from_txt(tau, sig, amp)  # tau, sig, amp should be strictly from the list
         # plot_wave_and_save(wave, tau, sig, amp)
@@ -362,3 +438,5 @@ def running_exp_decs(mode1 = 'test', mode2 = 'load'):
 if __name__ == '__main__':
     print('starting')
     running_exp_decs(mode1 = 'test', mode2 = 'check')
+    # num_points_influence()
+
