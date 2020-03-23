@@ -1,3 +1,2 @@
-# digital_signal_processing
-# current relaxations' processing
+# processing current relaxations
 # private
